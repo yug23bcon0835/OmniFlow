@@ -13,7 +13,6 @@ try:
     from search import search_the_web
     from web_scraper import scrape_web_page
     from image_gen import generate_image
-    from rag import search_my_documents
 except ImportError:
     print("Error: Could not import 'search_the_web'.")
     print("Make sure 'components/search.py' is a LangChain tool (@tool).")
@@ -31,7 +30,7 @@ llm = ChatGroq(
 
 # --- 2. Define the Tools ---
 # We just put our imported search_the_web function in a list.
-tools = [search_the_web, scrape_web_page, generate_image, search_my_documents]
+tools = [search_the_web, scrape_web_page, generate_image]
 llm_with_tools = llm.bind_tools(tools)
 
 sys_msg = SystemMessage(
@@ -41,16 +40,17 @@ sys_msg = SystemMessage(
         "1. search_the_web - use this to find information or URLs.\n"
         "2. scrape_web_page - use this to fetch webpage content.\n"
         "3. generate_image - use this to create images.\n"
-        "4. search_my_documents - ALWAYS use this tool first when the user mentions "
-        " 'uploaded file', 'my document', 'the PDF', a topic present in their files, "
-        " or any question that could be answered from their uploaded documents.\n\n"
-        "Rules:\n"
-        "- If user asks anything related to uploaded PDFs/documents, call search_my_documents.\n"
-        "- If user asks for general knowledge, use search_the_web.\n"
-        "- If user asks for page content, use scrape_web_page (but only after getting URL).\n"
-        "- If user asks to draw/create something, call generate_image.\n"
-        "- NEVER reply with 'I cannot find uploaded file' unless search_my_documents returns empty.\n"
-        "- When in doubt, PREFER calling search_my_documents.\n"
+        "\n"
+        "CRITICAL RULES:\n"
+        "- If the user asks for general knowledge, use search_the_web.\n"
+        "- If the user asks for page content, use scrape_web_page (only after getting a URL).\n"
+        "- If the user asks to draw/create something, call generate_image.\n"
+        "\n"
+        "IMAGE GENERATION PROTOCOL (IMPORTANT):\n"
+        "1. When you call 'generate_image', the tool will return a filename (e.g., 'generated_image_123.jpg').\n"
+        "2. Once you receive this filename, your job is DONE.\n"
+        "3. You must reply to the user saying: 'I have generated the image: [filename]'.\n"
+        "4. DO NOT call the tool a second time to 'verify' it. STOP immediately.\n"
     )
 )
 
@@ -66,17 +66,6 @@ def agent_node(state: MessagesState):
     if len(messages) == 0 or not isinstance(messages[0], SystemMessage):
         messages = [sys_msg] + messages
 
-    user_text = messages[-1].content.lower()
-
-    document_keywords = [
-        "pdf", "document", "file", "my file", "my pdf",
-        "uploaded", "knowledge base", "kb", "rag", "from my files"
-    ]
-
-    if any(k in user_text for k in document_keywords):
-        # Inject a hint BEFORE the model decides tool usage
-        messages.append(SystemMessage(content="Use search_my_documents now."))        
-    # Call the model
     response = llm_with_tools.invoke(messages)
     
     # Return the update to the state (LangGraph automagically appends this)
@@ -197,8 +186,9 @@ if __name__ == "__main__":
     print(run_llm_agent("What is my name?")) # Should remember "John"
     
     # Test 2: Tool use
-    print("\n--- Test 2: Tool Use ---")
-    print(run_llm_agent("What is the weather in Paris?"))
+    print("\n--- Test 2: Image Gen ---")
+    # Ensure you have your Cloudflare keys set in .env before running this!
+    print(run_llm_agent("Generate an image of a cyberpunk city", thread_id="test_user"))
 
 
 

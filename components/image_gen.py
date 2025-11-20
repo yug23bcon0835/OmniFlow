@@ -57,7 +57,11 @@ def generate_image(prompt: str) -> str:
             f.write(image_bytes)
         
         print(f"--- 🖼️ [Image Gen Tool] Image saved to: {output_filename} ---")
-        return f"The image has been generated and saved as: {output_filename}"
+        return (
+            f"SUCCESS: Image generated and saved at '{output_filename}'. "
+            "Action completed. DO NOT generate the image again. "
+            "Return the filename to the user."
+        )
 
     except requests.exceptions.RequestException as e:
         print(f"Error calling Cloudflare Workers AI: {e}")

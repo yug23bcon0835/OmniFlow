@@ -9,7 +9,6 @@ import uuid
 from llm import run_llm_agent, get_thread_history, get_all_thread_ids
 from audio_transcribe import transcribe_audio
 from tts import generate_speech
-from rag import build_rag_index
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -69,60 +68,6 @@ with st.sidebar:
         if st.button(label, key=f"btn_{t_id}", use_container_width=True):
             switch_thread(t_id)
             st.rerun()
-
-    st.divider()
-    
-    # RAG Uploader
-    st.header("📚 Knowledge Base")
-    uploaded_files = st.file_uploader(
-        "Upload Documents", 
-        accept_multiple_files=True, 
-        type=["pdf", "txt", "docx"]
-    )
-    
-    if st.button("Build Knowledge Base", key="rag_build"):
-        if uploaded_files:
-            with st.spinner("Indexing documents..."):
-                status = build_rag_index(uploaded_files)
-                st.success(status)
-        else:
-            st.warning("Upload files first.")
-
-    st.divider()
-    st.header("🕵️‍♂️ Admin Tools")
-    
-    if st.toggle("Show Database Content"):
-        import lancedb
-        import pandas as pd
-        
-        st.write("### 🔍 LanceDB Contents")
-        
-        # Connect to the local DB
-        try:
-            db = lancedb.connect("./lancedb_data")
-            
-            # Check if table exists
-            if "documents" in db.table_names():
-                tbl = db.open_table("documents")
-                
-                # Get total count
-                st.info(f"Total Chunks: {len(tbl)}")
-                
-                # Fetch first 10 rows as a Pandas DataFrame
-                # limit(20) prevents crashing if you have 1000s of docs
-                df = tbl.search().limit(20).to_pandas()
-                
-                # Drop the 'vector' column for display (it's just numbers and looks messy)
-                if 'vector' in df.columns:
-                    df = df.drop(columns=['vector'])
-                
-                # Display the interactive table
-                st.dataframe(df, use_container_width=True)
-            else:
-                st.warning("Table 'documents' not found. Build the Knowledge Base first.")
-                
-        except Exception as e:
-            st.error(f"Could not read database: {e}")
 
 # --- Main Page Layout ---
 st.title("🎙️ AI Voice Search Agent")
@@ -192,7 +137,7 @@ if submitted and text_input:
     msg_data = {"role": "assistant", "content": response_text}
     
     # Check for Image
-    match = re.search(r"(generated_image_\d+\.(jpg|png))", response_text)
+    match = re.search(r"(generated_image_[\w-]+\.(jpg|png))", response_text)
     if match and os.path.exists(match.group(1)):
         msg_data["image"] = match.group(1)
 
